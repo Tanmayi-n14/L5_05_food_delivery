@@ -1,59 +1,92 @@
+﻿"""Food Delivery Order Queue Manager."""
+
+from datetime import datetime
 import json
 import pickle
-from datetime import datetime
 
 # Global state
-orders = {}
-next_id = 1
-menu = {}
+ORDERS = {}
+NEXT_ID = 1
+MENU = {}
 VALID_STATUSES = ["placed", "cooking", "out_for_delivery", "delivered"]
 
-def create_order(customer, items, order_history=[]):
-    global next_id
+
+def create_order(customer, items, order_history=None):
+    """Create a new food delivery order and return its ID."""
+    if order_history is None:
+        order_history = []
+    # pylint: disable=global-statement
+    global NEXT_ID
     total = 0
-    for i in items:
-        total += menu.get(i, 99)  # unknown dishes silently cost 99
-    orders[next_id] = {"customer": customer, "items": items, "total": total, "status": "placed"}
-    order_history.append(next_id)
-    next_id += 1
+    for item in items:
+        total += MENU.get(item, 99)  # unknown dishes cost 99
+    ORDERS[NEXT_ID] = {
+        "customer": customer,
+        "items": items,
+        "total": total,
+        "status": "placed",
+    }
+    order_history.append(NEXT_ID)
+    NEXT_ID += 1
     return order_history[-1]
 
+
 def update_order_status(order_id, status):
+    """Update the status of an existing order safely."""
     try:
-        orders[order_id]["status"] = status
-    except:
+        ORDERS[order_id]["status"] = status
+    except KeyError:
         pass
 
+
 def read_menu_config(file="menu.json"):
-    global menu
+    """Read menu configuration from file or use default."""
+    # pylint: disable=global-statement
+    global MENU
     try:
-        f = open(file)
-        menu = json.load(f)
-    except Exception:
-        menu = {"pizza": 250, "burger": 150, "fries": 90, "coke": 40}
+        with open(file, "r", encoding="utf-8") as f:
+            MENU = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        MENU = {"pizza": 250, "burger": 150, "fries": 90, "coke": 40}
+
 
 def daily_revenue():
+    """Calculate total revenue for delivered orders."""
     revenue = 0
-    for o in orders:
-        if orders[o]["status"] == "delivered":
-            revenue = revenue + orders[o]["total"]
+    for o in ORDERS:
+        if ORDERS[o]["status"] == "delivered":
+            revenue = revenue + ORDERS[o]["total"]
     return revenue
 
+
 def backup_orders(file="orders.pkl"):
-    f = open(file, "wb")
-    pickle.dump(orders, f)
-    f.close()
+    """Backup orders to disk using pickle."""
+    with open(file, "wb") as f:
+        pickle.dump(ORDERS, f)
+
 
 def restore_orders(file="orders.pkl"):
-    global orders
-    orders = pickle.load(open(file, "rb"))
+    """Restore orders from disk."""
+    # pylint: disable=global-statement
+    global ORDERS
+    with open(file, "rb") as f:
+        ORDERS = pickle.load(f)
 
-def printQueue():
-    print("Order queue at %s" % datetime.now())
-    for o in orders:
-        print(o, orders[o]["customer"], orders[o]["status"], orders[o]["total"])
+
+def print_queue():
+    """Print the current order queue."""
+    print(f"Order queue at {datetime.now()}")
+    for o in ORDERS:
+        print(
+            o,
+            ORDERS[o]["customer"],
+            ORDERS[o]["status"],
+            ORDERS[o]["total"],
+        )
+
 
 def main():
+    """Main execution flow."""
     read_menu_config()
     a = create_order("Asha", ["pizza", "coke"])
     b = create_order("Ravi", ["burger", "sushi"])
@@ -65,6 +98,8 @@ def main():
     print("Revenue today:", daily_revenue())
     backup_orders()
     restore_orders()
-    printQueue()
+    print_queue()
 
-main()
+
+if __name__ == "__main__":
+    main()
